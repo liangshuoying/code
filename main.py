@@ -1,42 +1,115 @@
-from direct.showbase.ShowBase import ShowBase
-from panda3d.core import TextNode, TransparencyAttrib
-from panda3d.core import LPoint3, LVector3
-from direct.gui.OnscreenText import OnscreenText
-from direct.task.Task import Task
-from math import sin, cos, pi
-from random import randint, choice, random
-from direct.interval.MetaInterval import Sequence
-from direct.interval.FunctionInterval import Wait, Func
-import sys
-from LoadObjects import loadObject,genLabelText
-from AsteroidsDemo import AsteroidsDemo
-from math import sin, cos, pi
-from AsteroidsDemo import AsteroidsDemo
-
-SPRITE_POS = 55  # At default field of view and a depth of 55, the screen
-# dimensions is 40x30 units
-SCREEN_X = 20  # Screen goes from -20 to 20 on X
-SCREEN_Y = 15  # Screen goes from -15 to 15 on Y
-TURN_RATE = 360  # Degrees ship can turn in 1 second
-ACCELERATION = 5  # Ship acceleration in units/sec/sec
-MAX_VEL = 6  # Maximum ship velocity in units/sec
-MAX_VEL_SQ = MAX_VEL ** 2  # Square of the ship velocity
-DEG_TO_RAD = pi / 180  # translates degrees to radians for sin and cos
-BULLET_LIFE = 2  # How long bullets stay on screen before removed
-BULLET_REPEAT = .2  # How often bullets can be fired
-BULLET_SPEED = 10  # Speed bullets move
-AST_INIT_VEL = 1  # Velocity of the largest asteroids
-AST_INIT_SCALE = 3  # Initial asteroid scale
-AST_VEL_SCALE = 2.2  # How much asteroid speed multiplies when broken up
-AST_SIZE_SCALE = .6  # How much asteroid scale changes when broken up
-AST_MIN_SCALE = 1.1  # If and asteroid is smaller than this and is hit,
-#减速度
-DE_ACCELERATION = -5
+import argparse
+import gym
+import numpy as np
 
 
+import torch
+from ddpg import DDPG
+from normalized_actions import NormalizedActions
+from ounoise import OUNoise
+from replay_memory import ReplayMemory, Transition
 
+parser = argparse.ArgumentParser(description='PyTorch REINFORCE example')
+parser.add_argument('--gamma', type=float, default=0.99, metavar='G',
+                    help='discount factor for reward (default: 0.99)')
+parser.add_argument('--tau', type=float, default=0.001, metavar='G',
+                    help='discount factor for model (default: 0.001)')
+parser.add_argument('--noise_scale', type=float, default=0.3, metavar='G',
+                    help='initial noise scale (default: 0.3)')
+parser.add_argument('--final_noise_scale', type=float, default=0.3, metavar='G',
+                    help='final noise scale (default: 0.3)')
+parser.add_argument('--exploration_end', type=int, default=100, metavar='N',
+                    help='number of episodes with noise (default: 100)')
 
-# We now have everything we need. Make an instance of the class and start
-# 3D rendering
-demo = AsteroidsDemo()
-demo.run()
+#parser.add_argument('--seed', type=int, default=4, metavar='N',
+#                    help='random seed (default: 4)')
+parser.add_argument('--batch_size', type=int, default=128, metavar='N',
+                    help='batch size (default: 128)')
+parser.add_argument('--num_steps', type=int, default=1000, metavar='N',
+                    help='max episode length (default: 1000)')
+parser.add_argument('--num_episodes', type=int, default=1000, metavar='N',
+                    help='number of episodes (default: 1000)')
+parser.add_argument('--hidden_size', type=int, default=128, metavar='N',
+                    help='number of episodes (default: 128)')
+parser.add_argument('--updates_per_step', type=int, default=5, metavar='N',
+                    help='model updates per simulator step (default: 5)')
+parser.add_argument('--replay_size', type=int, default=1000000, metavar='N',
+                    help='size of replay buffer (default: 1000000)')
+parser.add_argument('--render', action='store_true',
+                    help='render the environment')
+args = parser.parse_args()
+
+env_name = 'Pendulum-v0'
+env = NormalizedActions(gym.make(env_name))
+
+#env.seed(args.seed)
+#torch.manual_seed(args.seed)
+#np.random.seed(args.seed)
+agent = DDPG(args.gamma, args.tau, args.hidden_size,
+                 env.observation_space.shape[0], env.action_space)
+#agent.load_models(episode=0)
+memory = ReplayMemory(args.replay_size)
+ounoise = OUNoise(env.action_space.shape[0])
+
+rewards = []
+for i_episode in range(args.num_episodes):
+    if i_episode < args.num_episodes // 2:
+        state = torch.Tensor([env.reset()])
+        ounoise.scale = (args.noise_scale - args.final_noise_scale) * max(0, args.exploration_end -
+                                                                          i_episode) / args.exploration_end + args.final_noise_scale
+        ounoise.reset()
+        episode_reward = 0
+        for t in range(args.num_steps):
+            action = agent.select_action(state, ounoise)
+            next_state, reward, done, _ = env.step(action.numpy()[0])
+            episode_reward += reward
+
+            action = torch.Tensor(action)
+            mask = torch.Tensor([not done])
+            next_state = torch.Tensor([next_state])
+            reward = torch.Tensor([reward])
+
+            #if i_episode % 2 == 0:
+            env.render()
+
+            memory.push(state, action, mask, next_state, reward)
+
+            state = next_state
+
+            if len(memory) > args.batch_size * 5:
+                for _ in range(args.updates_per_step):
+                    transitions = memory.sample(args.batch_size)
+                    batch = Transition(*zip(*transitions))
+
+                    agent.update_parameters(batch)
+
+            if done:
+                break
+        rewards.append(episode_reward)
+    else:
+        state = torch.Tensor([env.reset()])
+        episode_reward = 0
+        for t in range(args.num_steps):
+            action = agent.select_action(state)
+
+            next_state, reward, done, _ = env.step(action.numpy()[0])
+            episode_reward += reward
+
+            next_state = torch.Tensor([next_state])
+
+            #if i_episode % 2 == 0:
+            env.render()
+
+            state = next_state
+            if done:
+                break
+
+        rewards.append(episode_reward)
+
+    if i_episode % 50 == 0:
+        agent.save_models(i_episode)
+
+    print("Episode: {}, noise: {}, reward: {}, average reward: {}".format(i_episode, ounoise.scale,
+                                                                          rewards[-1], np.mean(rewards[-100:])))
+
+env.close()
