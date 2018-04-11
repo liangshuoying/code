@@ -72,25 +72,43 @@ class DiagGaussian(nn.Module):
             action = action_mean
         return action
     
+    def reparameterize(self, mu, logvar, deterministic=False):
+        if not deterministic:
+#             std = logvar.mul(0.5).exp_()
+            std = logvar.mul(1.0).exp_()
+#             std = logvar
+            eps = Variable(std.data.new(std.size()).normal_())
+            return eps.mul(std).add_(mu)
+            #~ return eps.mul(std).add_(mu), std
+        else:
+            return mu
+    
     def sample_mt(self, x, deterministic):
         action_mean, action_logstd = self(x)
         
-        action_std = action_logstd.exp()
-
-        noise = Variable(torch.randn(action_std.size()))
-        if action_std.is_cuda:
-            noise = noise.cuda()
-
-        #~ if deterministic is False:
-            #~ action = action_mean + action_std * noise
-        #~ else:
-            #~ action = action_mean
-        
-        if deterministic is False:
-            action = action_mean.detach() + action_std.detach() * noise
+        if 1:
+            action_std = action_logstd.exp()
+    
+            noise = Variable(torch.randn(action_std.size()))
+            if action_std.is_cuda:
+                noise = noise.cuda()
+    
+            #~ if deterministic is False:
+                #~ action = action_mean + action_std * noise
+            #~ else:
+                #~ action = action_mean
+            
+            if deterministic is False:
+                action = action_mean.detach() + action_std.detach() * noise
+            else:
+                action = action_mean.detach()
         else:
-            action = action_mean.detach()
-        
+            action_std = action_logstd.exp()
+            #~ action = self.reparameterize(action_mean, action_logstd, deterministic)
+            action = self.reparameterize(action_mean.detach(), action_logstd.detach(), deterministic)
+            #~ action, action_std = self.reparameterize(action_mean, action_logstd, deterministic)
+            #~ action = action.detach()
+            #~ action_mean = action_mean.detach()
         # test begin
         #~ eval_action = Variable(action.data)
         #~ eval_x = Variable(x.data)

@@ -41,7 +41,7 @@ args.algo = 'acktr'
 #~ args.algo = 'ppo'
 #~ args.load_dir = os.path.join('./trained_models/', args.algo)
 
-model_name = "acktr_20180226_130006//EP8000_0h20m_117"
+model_name = "acktr_20180409_224147//EP6000_0h15m_120"
 
 args.env_name = "Panda3d_ast"
 # args.env_name = "LunarLanderContinuous-v2"
@@ -54,7 +54,7 @@ args.load_dir = os.path.join('./trained_models/', args.env_name.replace('-', '_'
 
 conf = args.__dict__
     
-env_args = dict(obs_pixel=0, obs_size=10, act_disc=0, obs_win=4, obs_dtype=None)
+env_args = dict(obs_pixel=0, obs_size=8, act_disc=0, obs_win=4, obs_dtype=None)
 #~ conf['env_args'] = dict(obs_pixel=1, act_disc=0, obs_win=4, obs_dtype=None)
 #~ conf['env_args'].update(close=1)
 
@@ -91,6 +91,7 @@ def update_current_state(state):
 
 #~ env.render('human')
 state = env.reset(ma=0, restart=1)
+print('state', state.shape)
 update_current_state(state)
 
 if args.env_name.find('Bullet') > -1:

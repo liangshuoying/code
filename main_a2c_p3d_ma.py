@@ -16,7 +16,7 @@ from torch.utils.data.sampler import BatchSampler, SubsetRandomSampler
 
 from agents.agent_a2c import Agent
 from agents.agent_a2c_mt import Agent as AgentX
-from agents.agent_a2c_test import Agent as AgentT
+# from agents.agent_a2c_test import Agent as AgentT
 
 from arguments import get_args
 from baselines.common.vec_env.subproc_vec_env import SubprocVecEnv
@@ -72,7 +72,7 @@ def main(conf):
     agent1 = Agent(conf.copy(), observation_space, action_space, train=ma_mode, tsbx=self_tsbx, MODEL_ID=TSBX_ID)
     
     if conf['multi_agent']:
-        ma_mode = conf['ma_train_mode']==2
+        ma_mode = conf['ma_train_mode']==0
         # use different model in eval_both mode if possible
         model1 = conf.get('trained_model', None)
         model2 = conf.get('trained_model2', model1)
@@ -85,8 +85,8 @@ def main(conf):
         confx.update(trained_model=None, algo='a2c')
         # Multi Targets Strategies Begin
         obs_space_mt = spaces.Box(low=-1.0, high=1.0, shape=(5,) )
-#         act_space_mt = spaces.Discrete(5)
-        act_space_mt = action_space
+        act_space_mt = spaces.Discrete(5)
+#         act_space_mt = action_space
         # Multi Targets Strategies End
         hier_train = conf.get('hier_train', 1)
         modelx = conf.get('trained_modelx', None)
@@ -141,7 +141,7 @@ def main(conf):
             
             agent1.on_store(step, state, reward, done)
             
-            if conf['multi_agent'] and 0:
+            if conf['multi_agent']:
                 agent2.on_store(step, info['obs20'], info['score2'], done)
             if conf['hier_agent']:
                 agentx.on_store(step, info['obs2x'][1:], info['score2'], done)
@@ -159,7 +159,7 @@ def main(conf):
             final_rewardsx = agentx.get_final_rewards()
             action_lossx, value_lossx, dist_entropyx = a_v_dx
             # test begin
-            final_rewards2 = final_rewardsx
+#             final_rewards2 = final_rewardsx
             # test end
         
         action_loss, value_loss, dist_entropy = a_v_d
@@ -250,8 +250,8 @@ if __name__ == "__main__":
     #~ args.num_stack = 3
     #~ args.num_stack = 2
     args.num_stack = 1
-    args.algo = 'a2c'
-#     args.algo = 'acktr'
+#     args.algo = 'a2c'
+    args.algo = 'acktr'
 #     args.algo = 'ppo'
     # args.clip_param = 0.1
     # args.max_grad_norm = 40
@@ -285,18 +285,21 @@ if __name__ == "__main__":
 #     conf['ma_sync_step'] = 5000
     conf['ma_sync_step'] = 2000
     conf['hier_agent'] = 0
-    conf['hier_agent'] = 1
+#     conf['hier_agent'] = 1
     conf['hier_train'] = 1
     # 0-eval both, 1-agent2 eval, 2-train both
-    conf['ma_train_mode'] = 0
-#     conf['ma_train_mode'] = 1
-#     conf['ma_train_mode'] = 2
+    #conf['ma_train_mode'] = 0
+    conf['ma_train_mode'] = 1
+    #conf['ma_train_mode'] = 2
     
     conf['env_args'] = dict(obs_pixel=0, obs_size=8, act_disc=0, obs_win=4, obs_dtype=None)
     #~ conf['env_args'] = dict(obs_pixel=1, act_disc=0, obs_win=4, obs_dtype=None)
     conf['env_args'].update(close=args.close)
 #     conf['env_args'].update(close=1)
     
+    
+    conf['trained_model'] = "acktr_20180409_223026//EP3000_0h8m_160"
+    conf['trained_model'] = "acktr_20180409_224147//EP6000_0h15m_120"
     
 #     conf['trained_model'] = "acktr_20180308_113147//EP135000_8h47m_360"
 #     conf['trained_model'] = "acktr_20180308_231347//EP4000_0h16m_230"

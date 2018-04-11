@@ -1,8 +1,8 @@
 @ECHO OFF
 
-REM ~ @set python=D:\Anaconda3\
+REM ~ @set python=D:\Anaconda\
 
-@set current_dir=F:\xDQN\asteroids
+@set current_dir=..\asteroids
 pushd %current_dir% 
 
 @run_game_multi_ma.bat
